@@ -44,13 +44,115 @@ class AbuseIPIngestor(BaseIngestor):
 
 
 class AlienVaultIngestor(BaseIngestor):
-    pass
+    def __init__(self, api_key):
+        super().__init__(feed_name = "AlienVault OTX", base_url="otx.alienvault.com", api_key=api_key)
+
+    def fetch(self):
+        pass
+
+    def parse(self, raw_data):
+        results = raw_data["results"]
+
+        if not results:
+            return []
+
+        new_data = []
+        for pulse in results:
+            for entry in pulse["indicators"]:
+                entries = {
+                    "indicator": entry.get("indicator"),
+                    "type" : entry["type"],
+                    "source" : self.feed_name,
+                    "severity": entry.get("severity"),
+                    "country": entry.get("country")
+                }
+                new_data.append(entries)
+        return new_data
 
 class URLhausIngestor(BaseIngestor):
-    pass
+
+    def __init__(self):
+        super().__init__(feed_name = "URLhaus", base_url="urlhaus")
+
+    def fetch(self):
+        pass
+
+    def parse(self, raw_data):
+        urls = raw_data["urls"]
+
+        if not urls:
+            return []
+
+        new_data = []
+
+        for url in urls:
+            if url["url_status"] == "online":
+                url1 = {"indicator":url['url'],
+                        "type" : "url",
+                        "source" : self.feed_name,
+                        "severity" : url.get("threat"),
+                        "country" : url.get("country")}
+            else:
+                continue
+            new_data.append(url1)
+        return new_data
 
 class PhishTankIngestor(BaseIngestor):
-    pass
+    def __init__(self):
+        super().__init__(feed_name = "PhishTank", base_url="phishtank")
+
+    def fetch(self):
+        pass
+
+    def parse(self, raw_data):
+        if not raw_data:
+            return []
+
+        new_data = []
+
+        for data in raw_data:
+            if data["verified"] =="yes":
+                datas = {
+                    "indicator":data["url"],
+                    "type" : "url",
+                    "source" : self.feed_name,
+                    "severity" : data.get("threat"),
+                    "country" : data.get("country")
+                }
+            else:
+                continue
+
+            new_data.append(datas)
+
+        return new_data
 
 class BlocklistDeIngestor(BaseIngestor):
-    pass
+
+    def __init__(self):
+        super().__init__(feed_name = "Blocklist.de", base_url="blocklist.de")
+
+    def fetch(self):
+        pass
+
+    def parse(self, raw_data):
+        if not raw_data:
+            return []
+
+        new_string = raw_data.splitlines()
+
+        new_data = []
+
+        for line in new_string:
+            line = line.strip()
+            if line == "": continue
+            if line.startswith("#"): continue
+            data = {
+                "indicator":line,
+                "type" : "ip",
+                "source" : self.feed_name,
+                "severity" : None,
+                "country" : None
+            }
+            new_data.append(data)
+
+        return new_data
