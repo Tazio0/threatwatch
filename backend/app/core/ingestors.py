@@ -156,7 +156,9 @@ class BlocklistDeIngestor(BaseIngestor):
         super().__init__(feed_name = "Blocklist.de", base_url="blocklist.de")
 
     def fetch(self):
-        pass
+        response = requests.get("https://lists.blocklist.de/lists/all.txt")
+
+        return response.text
 
     def parse(self, raw_data):
         if not raw_data:
