@@ -90,7 +90,10 @@ class URLhausIngestor(BaseIngestor):
         super().__init__(feed_name = "URLhaus", base_url="urlhaus")
 
     def fetch(self):
-        pass
+        response = requests.get("https://urlhaus-api.abuse.ch/v1/urls/recent/")
+
+        response.raise_for_status()
+        return response.json()
 
     def parse(self, raw_data):
         urls = raw_data["urls"]
