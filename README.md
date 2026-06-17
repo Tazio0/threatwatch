@@ -1,7 +1,7 @@
 # 🛡️ ThreatWatch
 ### Autonomous Cyber Defense & Deception Platform
 
-ThreatWatch is a real-time threat intelligence platform that ingests live data from five industry-standard feeds, deploys an internal honeypot to catch active attackers, auto-generates firewall block rules, and pushes instant Discord alerts — all built on a strict TDD/OOP foundation.
+Cybersecurity threat intelligence dashboard using FastAPI, PostgreSQL, Docker, Pytest, and public threat feeds.
 
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
