@@ -48,8 +48,9 @@ This project demonstrates my ability to:
 
 From the project root, run:
 
-``bash
+```bash
 PYTHONPATH=. python -m pytest
+```
 
 ## Discord alert output
 
