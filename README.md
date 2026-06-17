@@ -48,12 +48,10 @@ This project demonstrates my ability to:
 
 ## Running Tests
 
-From the project root:
-
-```bash
+From the project root run this command in your terminal:
 PYTHONPATH=. python -m pytest
 
-Discord alert output
+## Discord alert output
 <img width="431" height="777" alt="image" src="https://github.com/user-attachments/assets/6e354586-6be9-4f8c-8aff-4641e11de54f" />
 
 ## Roadmap
