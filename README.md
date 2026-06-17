@@ -46,12 +46,22 @@ This project demonstrates my ability to:
 - Document a project clearly
 - Think about security tools responsibly
 
-## Running Tests
+From the project root, run:
 
-From the project root run this command in your terminal:
+``bash
 PYTHONPATH=. python -m pytest
 
 ## Discord alert output
+
+ThreatWatch sends formatted threat intelligence alerts to Discord when indicators are collected from supported public feeds.
+
+Each alert includes:
+- Feed source
+- Threat indicator
+- Indicator type
+- Country context
+- Total threats available from the feed
+
 <img width="431" height="777" alt="image" src="https://github.com/user-attachments/assets/6e354586-6be9-4f8c-8aff-4641e11de54f" />
 
 ## Roadmap
@@ -60,6 +70,7 @@ PYTHONPATH=. python -m pytest
 - [x] Add PostgreSQL database support
 - [x] Add Docker Compose development environment
 - [x] Add Pytest test suite
+- [x] Add Discord alert notifications
 - [ ] Improve threat scoring logic
 - [ ] Add dashboard interface
 - [ ] Add authentication
