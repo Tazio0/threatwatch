@@ -1,0 +1,140 @@
+import pytest
+from datetime import datetime, timezone, timedelta
+from unittest.mock import MagicMock, patch
+
+from backend.app.models import Threat
+from backend.app.database import Base
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+# Import processing functions (to be created)
+# Since they don't exist yet, we will test the expected import structure
+from backend.app.processing.enricher import Enricher
+from backend.app.processing.deduplicator import Deduplicator
+from backend.app.processing.scorer import SeverityScorer
+
+
+# ---------------------------------------------------------------------------
+# 1. Severity Scorer Tests
+# ---------------------------------------------------------------------------
+
+def test_scorer_abuseipdb_numeric():
+    """Test AbuseIPDB numeric confidence score normalization."""
+    scorer = SeverityScorer()
+    assert scorer.normalize("AbuseIPDB", 10) == "low"
+    assert scorer.normalize("AbuseIPDB", 40) == "medium"
+    assert scorer.normalize("AbuseIPDB", 75) == "high"
+    assert scorer.normalize("AbuseIPDB", 95) == "critical"
+
+def test_scorer_urlhaus_categories():
+    """Test URLhaus category normalization."""
+    scorer = SeverityScorer()
+    assert scorer.normalize("URLhaus", "malware_download") == "critical"
+    assert scorer.normalize("URLhaus", "phishing") == "high"
+    assert scorer.normalize("URLhaus", "unknown_threat") == "medium"
+
+def test_scorer_alienvault_text():
+    """Test AlienVault text severity normalization."""
+    scorer = SeverityScorer()
+    assert scorer.normalize("AlienVault OTX", "critical") == "critical"
+    assert scorer.normalize("AlienVault OTX", "high") == "high"
+    assert scorer.normalize("AlienVault OTX", "medium") == "medium"
+    assert scorer.normalize("AlienVault OTX", "low") == "low"
+    assert scorer.normalize("AlienVault OTX", None) == "medium"  # default fallback
+
+def test_scorer_blocklistde():
+    """BlocklistDe entries don't have severity; should default to medium or high."""
+    scorer = SeverityScorer()
+    assert scorer.normalize("Blocklist.de", None) in ["medium", "high"]
+
+
+# ---------------------------------------------------------------------------
+# 2. Enricher Tests
+# ---------------------------------------------------------------------------
+
+@patch("backend.app.processing.enricher.IP2Location")
+def test_enricher_ip_lookup(mock_ip2location_cls):
+    """Test that enricher successfully loads LITE DB and resolves IP address country and ISP."""
+    # Setup mock IP2Location object
+    mock_db = MagicMock()
+    mock_record = MagicMock()
+    mock_record.country_short = "ZA"
+    mock_record.isp = "Telkom SA"
+    mock_db.get_all.return_value = mock_record
+    mock_ip2location_cls.IP2Location.return_value = mock_db
+
+    enricher = Enricher(db_path="data/ip2location/IP2LOCATION-LITE-DB11.BIN")
+    
+    threat = {
+        "indicator": "196.25.1.1",
+        "type": "ip",
+        "source": "AbuseIPDB",
+        "severity": "high",
+        "country": None
+    }
+    
+    enriched = enricher.enrich(threat)
+    assert enriched["country"] == "ZA"
+    assert enriched.get("isp") == "Telkom SA"
+
+
+# ---------------------------------------------------------------------------
+# 3. Deduplicator Tests
+# ---------------------------------------------------------------------------
+
+@pytest.fixture(name="sqlite_session")
+def fixture_sqlite_session():
+    engine = create_engine("sqlite:///:memory:")
+    TestingSessionLocal = sessionmaker(bind=engine)
+    Base.metadata.create_all(bind=engine)
+    db = TestingSessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+        Base.metadata.drop_all(bind=engine)
+
+def test_deduplicator_detects_duplicate_today(sqlite_session):
+    """Deduplicator must flag duplicate indicator inserted on the same calendar day."""
+    dedup = Deduplicator(sqlite_session)
+    
+    indicator = "185.220.101.1"
+    
+    # Check if duplicate when db is empty -> Should be False
+    assert dedup.is_duplicate(indicator) is False
+    
+    # Log the threat
+    threat1 = Threat(
+        indicator=indicator,
+        type="ip",
+        source="AbuseIPDB",
+        severity="high",
+        country="ZA"
+    )
+    sqlite_session.add(threat1)
+    sqlite_session.commit()
+    
+    # Check again on the same day -> Should be True
+    assert dedup.is_duplicate(indicator) is True
+
+def test_deduplicator_allows_different_day(sqlite_session):
+    """Deduplicator must allow duplicate indicator if logged on a different calendar day."""
+    dedup = Deduplicator(sqlite_session)
+    indicator = "185.220.101.1"
+    
+    # Log the threat with yesterday's timestamp
+    yesterday = datetime.now() - timedelta(days=1)
+    threat1 = Threat(
+        indicator=indicator,
+        type="ip",
+        source="AbuseIPDB",
+        severity="high",
+        country="ZA"
+    )
+    threat1.created_at = yesterday
+    
+    sqlite_session.add(threat1)
+    sqlite_session.commit()
+    
+    # Check today -> Should be False since it's a different day
+    assert dedup.is_duplicate(indicator) is False

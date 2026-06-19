@@ -1,0 +1,108 @@
+import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from datetime import datetime
+
+from backend.app.database import Base, get_db
+from backend.app.models import Threat, HoneypotLog, FirewallRule
+
+# Use in-memory SQLite database for test verification
+SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
+
+@pytest.fixture(name="db_session")
+def fixture_db_session():
+    engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
+    TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    
+    # Create all tables in the SQLite database
+    Base.metadata.create_all(bind=engine)
+    
+    db = TestingSessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+        Base.metadata.drop_all(bind=engine)
+
+def test_database_table_creation(db_session):
+    """Test that all three models map to tables in the database."""
+    # Check table names exist in the schema metadata
+    tables = Base.metadata.tables.keys()
+    assert "threats" in tables
+    assert "honeypot_logs" in tables
+    assert "firewall_rules" in tables
+
+def test_threat_orm_mapping(db_session):
+    """Test inserting and querying a Threat model using ORM."""
+    threat = Threat(
+        indicator="192.168.1.100",
+        type="ip",
+        source="AbuseIPDB",
+        severity="high",
+        country="ZA"
+    )
+    
+    db_session.add(threat)
+    db_session.commit()
+    
+    # Query back the threat
+    queried = db_session.query(Threat).filter_by(indicator="192.168.1.100").first()
+    assert queried is not None
+    assert queried.id is not None
+    assert queried.indicator == "192.168.1.100"
+    assert queried.type == "ip"
+    assert queried.source == "AbuseIPDB"
+    assert queried.severity == "high"
+    assert queried.country == "ZA"
+    assert isinstance(queried.created_at, datetime)
+
+def test_honeypot_log_orm_mapping(db_session):
+    """Test inserting and querying a HoneypotLog model using ORM."""
+    log = HoneypotLog(
+        attacker_ip="203.0.113.15",
+        port=2222,
+        username="admin",
+        password="password",
+        protocol="tcp"
+    )
+    
+    db_session.add(log)
+    db_session.commit()
+    
+    queried = db_session.query(HoneypotLog).filter_by(attacker_ip="203.0.113.15").first()
+    assert queried is not None
+    assert queried.id is not None
+    assert queried.port == 2222
+    assert queried.username == "admin"
+    assert queried.password == "password"
+    assert queried.protocol == "tcp"
+
+def test_firewall_rule_orm_mapping(db_session):
+    """Test inserting and querying a FirewallRule model using ORM."""
+    rule = FirewallRule(
+        target_ip="198.51.100.2",
+        rule_command="ufw deny from 198.51.100.2",
+        rule_type="ufw",
+        is_active=True,
+        source="AlienVault OTX"
+    )
+    
+    db_session.add(rule)
+    db_session.commit()
+    
+    queried = db_session.query(FirewallRule).filter_by(target_ip="198.51.100.2").first()
+    assert queried is not None
+    assert queried.id is not None
+    assert queried.rule_command == "ufw deny from 198.51.100.2"
+    assert queried.rule_type == "ufw"
+    assert queried.is_active is True
+    assert queried.source == "AlienVault OTX"
+
+def test_get_db_yields_session():
+    """Test get_db dependency generator yields database sessions and terminates."""
+    generator = get_db()
+    db = next(generator)
+    assert db is not None
+    # Just asserting it yields a session
+    with pytest.raises(StopIteration):
+        next(generator)
