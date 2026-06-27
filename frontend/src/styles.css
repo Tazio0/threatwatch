@@ -238,10 +238,15 @@ input:focus-visible {
   transition: opacity 260ms ease, transform 260ms ease;
 }
 
+.scene-monitor .globe-hotspots,
+.scene-feed .globe-hotspots,
+.scene-discord .globe-hotspots,
 .scene-exports .globe-hotspots,
 .scene-system .globe-hotspots {
   opacity: 0;
-  transform: translateY(18px);
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(18px) scale(0.96);
 }
 
 .globe-hotspot {
