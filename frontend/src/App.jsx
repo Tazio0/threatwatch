@@ -3,11 +3,25 @@ import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import GlobeCanvas from "./GlobeCanvas.jsx";
 import markUrl from "../assets/nulltrace-mark.svg";
-import { feedItems, futureEndpoints, metrics, navItems, pipeline, routes } from "./data.js";
+import { feedItems, metrics, navItems, pipeline, routes } from "./data.js";
+import {
+  apiContract,
+  demoCountries,
+  getBackendReadinessNotes,
+  getCountryProfile,
+  getCountryRoutes
+} from "./dataAdapter.js";
 
 export default function App() {
   const rootRef = useRef(null);
   const [activeSection, setActiveSection] = useState("signal");
+  const [globeReady, setGlobeReady] = useState(false);
+  const [showBoot, setShowBoot] = useState(true);
+  const [selectedCountryCode, setSelectedCountryCode] = useState("ZA");
+  const [isInsightOpen, setIsInsightOpen] = useState(false);
+
+  const selectedCountry = getCountryProfile(selectedCountryCode);
+  const selectedRoutes = getCountryRoutes(selectedCountryCode);
 
   useEffect(() => {
     const sections = Array.from(document.querySelectorAll("[data-section]"));
@@ -41,6 +55,18 @@ export default function App() {
       window.removeEventListener("hashchange", syncHash);
     };
   }, []);
+
+  useEffect(() => {
+    const fallback = window.setTimeout(() => setGlobeReady(true), 2600);
+    return () => window.clearTimeout(fallback);
+  }, []);
+
+  useEffect(() => {
+    if (!globeReady) return undefined;
+
+    const bootTimer = window.setTimeout(() => setShowBoot(false), 650);
+    return () => window.clearTimeout(bootTimer);
+  }, [globeReady]);
 
   useEffect(() => {
     const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -120,12 +146,25 @@ export default function App() {
     return () => ctx.revert();
   }, []);
 
+  const handleCountrySelect = (countryCode) => {
+    setSelectedCountryCode(countryCode);
+    setIsInsightOpen(true);
+  };
+
   return (
     <div className={`app scene-${activeSection}`} ref={rootRef}>
       <a className="skip-link" href="#signal">Skip to content</a>
 
-      <VisualBackplane activeSection={activeSection} />
+      <VisualBackplane activeSection={activeSection} onGlobeReady={() => setGlobeReady(true)} />
       <Header activeSection={activeSection} />
+      <GlobeHotspots countries={demoCountries} selectedCode={selectedCountryCode} onSelectCountry={handleCountrySelect} />
+      <CountryInsightDrawer
+        country={selectedCountry}
+        open={isInsightOpen}
+        routes={selectedRoutes}
+        onClose={() => setIsInsightOpen(false)}
+      />
+      <BootScreen active={showBoot} />
 
       <main>
         <HeroSection />
@@ -139,13 +178,13 @@ export default function App() {
   );
 }
 
-function VisualBackplane({ activeSection }) {
+function VisualBackplane({ activeSection, onGlobeReady }) {
   return (
     <div className="visual-backplane" aria-hidden="true">
       <div className="backplane-vignette" />
       <div className="backplane-grid" />
       <div className="globe-frame">
-        <GlobeCanvas activeSection={activeSection} routes={routes} />
+        <GlobeCanvas activeSection={activeSection} routes={routes} onReady={onGlobeReady} />
       </div>
       <div className="signal-stream">
         {routes.slice(0, 4).map((route) => (
@@ -156,6 +195,96 @@ function VisualBackplane({ activeSection }) {
       </div>
       <div className="scanline" />
     </div>
+  );
+}
+
+function BootScreen({ active }) {
+  return (
+    <div className={`boot-screen ${active ? "" : "loaded"}`} aria-hidden={!active}>
+      <div className="boot-card">
+        <img src={markUrl} alt="" />
+        <div>
+          <span>Booting interface</span>
+          <strong>Nulltrace</strong>
+          <small>Mapping country borders, demo routes, and review queues.</small>
+        </div>
+        <i />
+      </div>
+    </div>
+  );
+}
+
+function GlobeHotspots({ countries, selectedCode, onSelectCountry }) {
+  return (
+    <div className="globe-hotspots" aria-label="Demo country selectors">
+      {countries.map((country) => (
+        <button
+          key={country.code}
+          type="button"
+          className={`globe-hotspot ${country.severity} ${selectedCode === country.code ? "active" : ""}`}
+          style={{ "--x": country.marker.x, "--y": country.marker.y }}
+          onClick={() => onSelectCountry(country.code)}
+          aria-pressed={selectedCode === country.code}
+          aria-label={`Open ${country.name} threat summary`}
+        >
+          <span>{country.code}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function CountryInsightDrawer({ country, open, routes: countryRoutes, onClose }) {
+  const visibleRoutes = countryRoutes.length ? countryRoutes : routes.slice(0, 2);
+
+  return (
+    <aside className={`insight-drawer ${open ? "open" : ""}`} aria-hidden={!open} aria-label={`${country.name} threat summary`}>
+      <button className="drawer-close" type="button" onClick={onClose} aria-label="Close country summary">Close</button>
+
+      <div className="drawer-heading">
+        <p className="eyebrow">Selected surface</p>
+        <h2>{country.name}</h2>
+        <span>{country.region}</span>
+      </div>
+
+      <div className="drawer-score-row">
+        <div className={`risk-orb ${country.severity}`} style={{ "--score": `${country.score}%` }}>
+          <strong>{country.score}</strong>
+          <span>risk</span>
+        </div>
+        <div>
+          <small>{country.posture}</small>
+          <p>{country.summary}</p>
+        </div>
+      </div>
+
+      <div className="drawer-stat-grid">
+        <span><strong>{country.signals}</strong> signals</span>
+        <span><strong>{country.critical}</strong> critical</span>
+        <span><strong>{country.lastSeen}</strong> last seen</span>
+      </div>
+
+      <div className="drawer-section">
+        <small>Active route sample</small>
+        {visibleRoutes.slice(0, 3).map((route) => (
+          <article key={route.id} className="drawer-route">
+            <b>{route.originCode}{" -> "}{route.targetCode}</b>
+            <span>{route.source} / {route.vector}</span>
+          </article>
+        ))}
+      </div>
+
+      <div className="drawer-section">
+        <small>Indicators</small>
+        <div className="drawer-tags">
+          {country.indicators.map((indicator) => <code key={indicator}>{indicator}</code>)}
+        </div>
+      </div>
+
+      <div className="drawer-tags">
+        {country.tags.map((tag) => <span key={tag}>{tag}</span>)}
+      </div>
+    </aside>
   );
 }
 
@@ -321,8 +450,8 @@ function DiscordSection() {
       setWebhookStatus({ type: "success", message: "Installed. Check the channel for the Nulltrace test alert." });
     } catch (error) {
       setWebhookStatus({
-        type: "error",
-        message: "Could not send the test alert from the browser. If Discord blocks it, proxy this through FastAPI."
+        type: "preview",
+        message: "Demo payload validated. If Discord blocks browser delivery, the same payload is ready for your FastAPI proxy."
       });
     }
   };
@@ -420,6 +549,8 @@ function ExportsSection() {
 }
 
 function SystemSection() {
+  const backendNotes = getBackendReadinessNotes();
+
   return (
     <section id="system" className="story-section system-section" data-section>
       <div className="section-card wide-card final-card">
@@ -437,8 +568,13 @@ function SystemSection() {
         <div className="endpoint-panel" data-reveal>
           <p>Future live-data hooks</p>
           <div>
-            {futureEndpoints.map((endpoint) => <code key={endpoint}>{endpoint}</code>)}
+            {Object.values(apiContract).map((endpoint) => <code key={endpoint}>{endpoint}</code>)}
           </div>
+        </div>
+
+        <div className="adapter-panel" data-reveal>
+          <p>Frontend handoff</p>
+          {backendNotes.map((note) => <span key={note}>{note}</span>)}
         </div>
 
         <footer>

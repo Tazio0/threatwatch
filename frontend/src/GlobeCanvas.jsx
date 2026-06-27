@@ -13,13 +13,18 @@ const SCENE_TARGETS = {
   system: { scale: 0.7, x: 0.22, y: 3.95, z: 0 }
 };
 
-export default function GlobeCanvas({ activeSection, routes }) {
+export default function GlobeCanvas({ activeSection, routes, onReady }) {
   const mountRef = useRef(null);
   const activeRef = useRef(activeSection);
+  const readyRef = useRef(onReady);
 
   useEffect(() => {
     activeRef.current = activeSection;
   }, [activeSection]);
+
+  useEffect(() => {
+    readyRef.current = onReady;
+  }, [onReady]);
 
   useEffect(() => {
     const mount = mountRef.current;
@@ -128,6 +133,7 @@ export default function GlobeCanvas({ activeSection, routes }) {
     const clock = new THREE.Clock();
     let rafId = 0;
     let disposed = false;
+    let notifiedReady = false;
 
     const resize = () => {
       const width = Math.max(mount.clientWidth, 1);
@@ -179,6 +185,11 @@ export default function GlobeCanvas({ activeSection, routes }) {
       zaHalo.material.opacity = 0.23 + (reducedMotion ? 0 : Math.sin(elapsed * 1.4) * 0.08);
 
       renderer.render(scene, camera);
+
+      if (!notifiedReady) {
+        notifiedReady = true;
+        window.requestAnimationFrame(() => readyRef.current?.());
+      }
 
       if (!reducedMotion && !disposed) {
         rafId = requestAnimationFrame(renderFrame);
