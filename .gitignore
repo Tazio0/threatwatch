@@ -235,3 +235,5 @@ frontend/dist/
 # Local agent/project context and private design references
 .agent-memory.md
 frontend/ref/
+
+data/geoip/*.mmdb

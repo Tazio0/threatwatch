@@ -31,7 +31,7 @@ export default function GlobeCanvas({ activeSection, routes, onReady }) {
     if (!mount) return undefined;
 
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const isSmallScreen = window.matchMedia("(max-width: 720px)").matches;
+    const isSmallScreen = window.matchMedia("(max-width: 720px), (max-height: 560px)").matches;
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 100);
     camera.position.set(0, 0, 6.55);
@@ -139,9 +139,9 @@ export default function GlobeCanvas({ activeSection, routes, onReady }) {
       const width = Math.max(mount.clientWidth, 1);
       const height = Math.max(mount.clientHeight, 1);
       const aspect = width / height;
-      const compact = width < 720 || aspect < 0.75;
-      const fov = compact ? 54 : 42;
-      const fitDiameter = 4.9;
+      const compact = width < 720 || height < 560 || aspect < 0.75;
+      const fov = compact ? 56 : 42;
+      const fitDiameter = height < 560 && aspect > 1.25 ? 4.35 : 4.9;
       const fitDistance = Math.max(
         compact ? 7.2 : 6.55,
         fitDiameter / (2 * Math.tan(THREE.MathUtils.degToRad(fov / 2))),
